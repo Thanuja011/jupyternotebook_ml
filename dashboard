@@ -1,0 +1,272 @@
+#student.json
+[
+  {
+    "student_id": 1,
+    "name": "Alice Smith",
+    "class": 8,
+    "comprehension": 75,
+    "attention": 68,
+    "focus": 72,
+    "retention": 65,
+    "assessment_score": 78,
+    "engagement_time": 120
+  },
+  {
+    "student_id": 2,
+    "name": "Bob Johnson",
+    "class": 9,
+    "comprehension": 60,
+    "attention": 55,
+    "focus": 58,
+    "retention": 62,
+    "assessment_score": 65,
+    "engagement_time": 90
+  }
+]
+#page.js
+// pages/index.js
+import { useState, useMemo } from "react";
+import Head from "next/head";
+import fs from "fs";
+import path from "path";
+import { Bar, Scatter, Radar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  BarElement,
+  RadialLinearScale,
+  LineElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  BarElement,
+  RadialLinearScale,
+  LineElement,
+  Tooltip,
+  Legend
+);
+
+// Load students.json at build time
+export async function getStaticProps() {
+  const dataPath = path.join(process.cwd(), "public", "data", "students.json");
+  const raw = fs.readFileSync(dataPath, "utf8");
+  const students = JSON.parse(raw);
+  return { props: { students } };
+}
+
+export default function Home({ students }) {
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState({ key: "assessment_score", dir: "desc" });
+  const [selectedStudentId, setSelectedStudentId] = useState(
+    students[0]?.student_id ?? null
+  );
+
+  // Filtering + sorting
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    let arr = students.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        String(s.student_id) === q ||
+        String(s.class) === q
+    );
+    arr.sort((a, b) => {
+      const dir = sort.dir === "asc" ? 1 : -1;
+      if (typeof a[sort.key] === "number")
+        return (a[sort.key] - b[sort.key]) * dir;
+      return String(a[sort.key]).localeCompare(String(b[sort.key])) * dir;
+    });
+    return arr;
+  }, [students, query, sort]);
+
+  // Overview stats
+  const avgScore = (
+    students.reduce((s, x) => s + x.assessment_score, 0) / students.length
+  ).toFixed(1);
+  const avgComprehension = (
+    students.reduce((s, x) => s + x.comprehension, 0) / students.length
+  ).toFixed(1);
+  const avgAttention = (
+    students.reduce((s, x) => s + x.attention, 0) / students.length
+  ).toFixed(1);
+  const avgFocus = (
+    students.reduce((s, x) => s + x.focus, 0) / students.length
+  ).toFixed(1);
+  const avgRetention = (
+    students.reduce((s, x) => s + x.retention, 0) / students.length
+  ).toFixed(1);
+
+  // Bar chart
+  const barData = {
+    labels: ["Comprehension", "Attention", "Focus", "Retention", "Avg Score"],
+    datasets: [
+      {
+        label: "Averages (0-100)",
+        data: [avgComprehension, avgAttention, avgFocus, avgRetention, avgScore],
+        backgroundColor: "rgba(54, 162, 235, 0.6)",
+      },
+    ],
+  };
+
+  // Scatter chart
+  const scatterData = {
+    datasets: [
+      {
+        label: "Attention vs Score",
+        data: students.map((s) => ({
+          x: s.attention,
+          y: s.assessment_score,
+        })),
+        backgroundColor: "rgba(255, 99, 132, 0.6)",
+      },
+    ],
+  };
+
+  // Radar chart for selected student
+  const selected = students.find(
+    (s) => s.student_id === Number(selectedStudentId)
+  );
+  const radarData = {
+    labels: ["Comprehension", "Attention", "Focus", "Retention", "Engagement"],
+    datasets: [
+      {
+        label: selected?.name ?? "student",
+        data: selected
+          ? [
+              selected.comprehension,
+              selected.attention,
+              selected.focus,
+              selected.retention,
+              selected.engagement_time / 1.8, // scale engagement
+            ]
+          : [],
+        fill: true,
+        backgroundColor: "rgba(34, 197, 94, 0.3)",
+        borderColor: "rgba(34, 197, 94, 1)",
+      },
+    ],
+  };
+
+  // Toggle sorting
+  const toggleSort = (key) => {
+    setSort((prev) => ({
+      key,
+      dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  return (
+    <div className="p-6">
+      <Head>
+        <title>Student Performance Dashboard</title>
+      </Head>
+
+      <h1 className="text-3xl font-bold mb-6">
+        Cognitive Skills & Student Performance
+      </h1>
+
+      {/* Overview */}
+      <section className="mb-6 grid md:grid-cols-3 gap-4">
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold">Average Score</h3>
+          <p className="text-2xl">{avgScore}</p>
+        </div>
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold">Avg Skills</h3>
+          <p>Comp: {avgComprehension}</p>
+          <p>Attn: {avgAttention}</p>
+          <p>Focus: {avgFocus}</p>
+          <p>Ret: {avgRetention}</p>
+        </div>
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold">Insights</h3>
+          <ul className="list-disc ml-5 text-sm">
+            <li>Comprehension & Attention drive performance strongly.</li>
+            <li>Clusters reveal different learning personas.</li>
+          </ul>
+        </div>
+      </section>
+
+      {/* Charts */}
+      <section className="mb-6 grid md:grid-cols-2 gap-6">
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold mb-2">Skill Averages</h3>
+          <Bar data={barData} />
+        </div>
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold mb-2">Attention vs Score</h3>
+          <Scatter data={scatterData} />
+        </div>
+      </section>
+
+      {/* Radar + Table */}
+      <section className="mb-6 grid md:grid-cols-2 gap-6">
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold mb-2">Student Profile (Radar)</h3>
+          <select
+            value={selectedStudentId}
+            onChange={(e) => setSelectedStudentId(e.target.value)}
+            className="mb-3 p-2 border rounded w-full"
+          >
+            {students.map((s) => (
+              <option key={s.student_id} value={s.student_id}>
+                {s.student_id} — {s.name}
+              </option>
+            ))}
+          </select>
+          <Radar data={radarData} />
+        </div>
+
+        <div className="p-4 shadow rounded bg-white">
+          <h3 className="font-semibold mb-2">Student Table</h3>
+          <input
+            className="w-full p-2 mb-2 border rounded"
+            placeholder="Search name, id, class"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr>
+                  <th onClick={() => toggleSort("student_id")}>ID</th>
+                  <th onClick={() => toggleSort("name")}>Name</th>
+                  <th onClick={() => toggleSort("class")}>Class</th>
+                  <th onClick={() => toggleSort("comprehension")}>Comp</th>
+                  <th onClick={() => toggleSort("attention")}>Attn</th>
+                  <th onClick={() => toggleSort("focus")}>Focus</th>
+                  <th onClick={() => toggleSort("retention")}>Ret</th>
+                  <th onClick={() => toggleSort("assessment_score")}>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.slice(0, 200).map((s) => (
+                  <tr key={s.student_id}>
+                    <td>{s.student_id}</td>
+                    <td>{s.name}</td>
+                    <td>{s.class}</td>
+                    <td>{s.comprehension}</td>
+                    <td>{s.attention}</td>
+                    <td>{s.focus}</td>
+                    <td>{s.retention}</td>
+                    <td>{s.assessment_score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-gray-500 text-xs mt-2">
+            Showing {filtered.length} students (max 200 rows).
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
