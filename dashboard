@@ -266,7 +266,7 @@ export default function Home({ students }) {
             Showing {filtered.length} students (max 200 rows).
           </p>
         </div>
-      </section>
+      </section>v
     </div>
   );
 }
